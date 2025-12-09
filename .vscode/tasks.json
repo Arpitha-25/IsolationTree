@@ -4,7 +4,7 @@
         {
             "label": "C/C++: Build IForestASD Project",
             "type": "shell",
-            "command": "make", // <-- This is the key change
+            "command": "make",
             "args": [],
             "options": {
                 "cwd": "${workspaceFolder}"
