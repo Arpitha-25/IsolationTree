@@ -55,7 +55,5 @@ bool adwin_detect_change(ADWIN *a) {
     double mean2 = sum2 / (a->size - mid);
     double diff  = fabs(mean1 - mean2);
 
-    // Very simple threshold: diff > delta ⇒ drift.
-    // (Real ADWIN uses Hoeffding bounds; here we approximate.)
     return diff > a->delta;
 }
