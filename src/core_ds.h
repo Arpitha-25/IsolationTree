@@ -5,7 +5,7 @@
 #include <float.h>  // For DBL_MAX, DBL_MIN
 
 // --- Configuration Parameters ---
-#define NUM_FEATURES 29 // D: The dimensionality of your data (e.g., 10 features)
+#define NUM_FEATURES 29 // D: The dimensionality of your data 
 #define NUM_TREES 100    // T: The number of Isolation Trees in the Forest
 #define WINDOW_SIZE 256  // W: The size of the Sliding Window
 #define SAMPLE_SIZE 256  // psi (ψ): The number of points sampled for each tree (often W)

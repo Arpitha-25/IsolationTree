@@ -1,3 +1,5 @@
+#include "adwin.h"
+#include "kswin.h"
 #include "stream_manager.h"
 #include "core_ds.h"
 #include "iforest.h"
@@ -109,9 +111,14 @@ double evaluate_window_anomaly_rate(IsolationForest* forest, SlidingWindow* sw) 
 void process_stream(IsolationForest* forest, SlidingWindow* sw, double desired_u, int max_iterations) {
     int iteration = 0;
     int points_processed = 0;
-    
+
+    // Create drift detectors (parameters can be tuned)
+    ADWIN *adw   = adwin_create(512, 0.02);      // capacity 512, delta 0.02
+    KSWIN *kswin = kswin_create(200, 50, 0.05);  // window 200, recent r=50
+
     printf("--- Waiting to fill initial window (W=%d) for first training ---\n", WINDOW_SIZE);
-    
+
+    // Fill initial window
     while (sw->current_size < WINDOW_SIZE && iteration < max_iterations) {
         DataPoint new_point = get_next_point_from_stream();
         if (isnan(new_point.features[0])) {
@@ -122,18 +129,20 @@ void process_stream(IsolationForest* forest, SlidingWindow* sw, double desired_u
         points_processed++;
         iteration++;
     }
-    
+
     if (sw->current_size == WINDOW_SIZE) {
         printf("Window filled with %d points. Initial IForest training...\n", points_processed);
         train_iforest(forest, sw->buffer, WINDOW_SIZE);
     } else {
         printf("Stream ended before window filled (%d/%d).\n", sw->current_size, WINDOW_SIZE);
         close_stream();
+        adwin_destroy(adw);
+        kswin_destroy(kswin);
         return;
     }
-    
+
     printf("--- Starting Stream Processing ---\n");
-    
+
     while (iteration < max_iterations) {
         DataPoint new_point = get_next_point_from_stream();
         if (isnan(new_point.features[0])) {
@@ -144,22 +153,46 @@ void process_stream(IsolationForest* forest, SlidingWindow* sw, double desired_u
             iteration++;
             continue;
         }
-        
+
         slide_window(sw, new_point);
+
+        // Score new point
         double score = calculate_score(forest, new_point, SAMPLE_SIZE);
-        printf("Point %d: Score=%.4f (%s)\n", points_processed, score, 
+        printf("Point %d: Score=%.4f (%s)\n", points_processed, score,
                (score >= ANOMALY_THRESHOLD) ? "ANOMALY" : "Normal");
-        
+
+        // Feed score to drift detectors
+        adwin_add(adw, score);
+        kswin_add(kswin, score);
+
+        bool drift_adwin = adwin_detect_change(adw);
+        bool drift_ks    = kswin_detect_change(kswin);
+
+        // Optional: still compute anomaly-rate u as in original paper
         double rate = evaluate_window_anomaly_rate(forest, sw);
-        if (rate > desired_u) {
-            printf(">>> DRIFT DETECTED (%.4f > %.4f). Retraining...\n", rate, desired_u);
+
+        if (drift_adwin || drift_ks || rate > desired_u) {
+            printf(">>> DRIFT DETECTED by ");
+            if (drift_adwin) printf("ADWIN ");
+            if (drift_ks)    printf("KSWIN ");
+            if (rate > desired_u) printf("(u-rule) ");
+            printf(" — Retraining...\n");
+
             train_iforest(forest, sw->buffer, WINDOW_SIZE);
+
+            // Simple reset: recreate detectors after retrain
+            adwin_destroy(adw);
+            kswin_destroy(kswin);
+            adw   = adwin_create(512, 0.02);
+            kswin = kswin_create(200, 50, 0.05);
         }
-        
+
         points_processed++;
         iteration++;
     }
-    
+
     close_stream();
+    adwin_destroy(adw);
+    kswin_destroy(kswin);
     printf("Total points processed: %d\n", points_processed);
 }

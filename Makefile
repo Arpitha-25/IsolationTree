@@ -4,7 +4,10 @@ CC = gcc
 # -lm links the math library (required for functions like log, pow, ceil)
 CFLAGS = -Wall -Wextra -std=c11 -lm
 # List all your source files in the src directory
-SOURCES = src/main.c src/core_ds.c src/iforest.c src/stream_manager.c src/utils.c
+SOURCES = src/main.c src/core_ds.c src/iforest.c \
+          src/stream_manager.c src/utils.c \
+          src/adwin.c src/kswin.c
+
 EXECUTABLE = iforest_stream
 OUTPUT_DIR = bin
 
